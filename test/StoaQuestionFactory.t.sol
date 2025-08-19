@@ -159,7 +159,7 @@ contract StoaQuestionFactoryTest is Test {
         address questionAddress =
             factory.createQuestion(address(paymentToken), SUBMISSION_COST_1, DURATION_1, MAX_WINNERS_1, 0);
 
-        assertNotEq(questionAddress, address(0));
+        assertTrue(questionAddress != address(0));
         assertEq(factory.questionCount(), 1);
 
         address[] memory allQuestions = factory.getAllQuestions();
@@ -179,7 +179,7 @@ contract StoaQuestionFactoryTest is Test {
         address questionAddress =
             factory.createQuestion(address(paymentToken), SUBMISSION_COST_1, DURATION_1, MAX_WINNERS_1, SEED_AMOUNT_1);
 
-        assertNotEq(questionAddress, address(0));
+        assertTrue(questionAddress != address(0));
         StoaQuestion question = StoaQuestion(questionAddress);
         assertEq(question.totalRewardPool(), SEED_AMOUNT_1);
     }
@@ -191,14 +191,14 @@ contract StoaQuestionFactoryTest is Test {
         address question1 =
             factory.createQuestion(address(paymentToken), SUBMISSION_COST_1, DURATION_1, MAX_WINNERS_1, 0);
 
-        assertNotEq(question1, address(0));
+        assertTrue(question1 != address(0));
         assertEq(factory.questionCount(), 1);
 
         // Second question without seed amount
         address question2 =
             factory.createQuestion(address(paymentToken), SUBMISSION_COST_2, DURATION_2, MAX_WINNERS_2, 0);
 
-        assertNotEq(question2, address(0));
+        assertTrue(question2 != address(0));
         assertEq(factory.questionCount(), 2);
     }
 
@@ -280,7 +280,7 @@ contract StoaQuestionFactoryTest is Test {
 
         address questionAddress = factory.createQuestion(address(paymentToken), SUBMISSION_COST_1, DURATION_1, 0, 0);
 
-        assertNotEq(questionAddress, address(0));
+        assertTrue(questionAddress != address(0));
         StoaQuestion question = StoaQuestion(questionAddress);
         assertEq(question.maxWinners(), 0);
     }
@@ -290,7 +290,7 @@ contract StoaQuestionFactoryTest is Test {
 
         address questionAddress = factory.createQuestion(address(paymentToken), SUBMISSION_COST_1, 1, MAX_WINNERS_1, 0);
 
-        assertNotEq(questionAddress, address(0));
+        assertTrue(questionAddress != address(0));
         StoaQuestion question = StoaQuestion(questionAddress);
         assertEq(question.endsAt(), block.timestamp + 1);
     }
@@ -301,7 +301,7 @@ contract StoaQuestionFactoryTest is Test {
         address questionAddress =
             factory.createQuestion(address(paymentToken), SUBMISSION_COST_1, DURATION_1, type(uint8).max, 0);
 
-        assertNotEq(questionAddress, address(0));
+        assertTrue(questionAddress != address(0));
         StoaQuestion question = StoaQuestion(questionAddress);
         assertEq(question.maxWinners(), type(uint8).max);
     }
@@ -321,7 +321,7 @@ contract StoaQuestionFactoryTest is Test {
 
         address questionAddress = factory.createQuestion(address(paymentToken), submissionCost, duration, maxWinners, 0);
 
-        assertNotEq(questionAddress, address(0));
+        assertTrue(questionAddress != address(0));
         assertEq(factory.questionCount(), 1);
 
         StoaQuestion question = StoaQuestion(questionAddress);
@@ -433,7 +433,7 @@ contract StoaQuestionFactoryTest is Test {
         address questionAddress =
             factory.createQuestion(address(paymentToken), SUBMISSION_COST_1, DURATION_1, MAX_WINNERS_1, 0);
 
-        assertNotEq(questionAddress, address(0));
+        assertTrue(questionAddress != address(0));
         assertTrue(factory.isWhitelisted(owner));
     }
 }
