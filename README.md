@@ -6,7 +6,6 @@ A decentralized Q&A platform where users can ask questions, provide answers, and
 
 The Stoa Protocol consists of three main smart contracts:
 
-- **StoaReputation**: Tracks user reputation with time-based decay
 - **StoaProtocol**: Main protocol registry for question management  
 - **StoaQuestionFactory**: Factory for creating and managing individual questions
 - **StoaQuestion**: Individual question contracts with answer submission and reward distribution
@@ -44,7 +43,6 @@ The Stoa Protocol is deployed on **Base Mainnet** with the following addresses:
 
 | Contract | Address | Basescan |
 |----------|---------|----------|
-| **StoaReputation** | `0x5eAad9617C589E1B3030D27131dC0bf77AB08A77` | [View](https://basescan.org/address/0x5eaad9617c589e1b3030d27131dc0bf77ab08a77) |
 | **StoaProtocol** | `0x28848AfD006aC2A1E571eba5079Ea6C6EC3504FB` | [View](https://basescan.org/address/0x28848afd006ac2a1e571eba5079ea6c6ec3504fb) |
 | **StoaQuestionFactory** | `0x79e343Ab7144d0A2cE9e6515281BF13691797FC0` | [View](https://basescan.org/address/0x79e343ab7144d0a2ce9e6515281bf13691797fc0) |
 
@@ -60,16 +58,7 @@ export BASE_RPC_URL="https://api.developer.coinbase.com/rpc/v1/base/YOUR_API_KEY
 export BASESCAN_API_KEY="YOUR_BASESCAN_API_KEY"
 ```
 
-#### Step 1: Deploy StoaReputation
-```bash
-forge script script/DeployStoaReputation.s.sol \
-  --fork-url $BASE_RPC_URL \
-  --broadcast \
-  --verify \
-  --etherscan-api-key $BASESCAN_API_KEY
-```
-
-#### Step 2: Deploy StoaProtocol
+#### Step 1: Deploy StoaProtocol
 ```bash
 forge script script/DeployStoaProtocol.s.sol \
   --fork-url $BASE_RPC_URL \
@@ -78,11 +67,10 @@ forge script script/DeployStoaProtocol.s.sol \
   --etherscan-api-key $BASESCAN_API_KEY
 ```
 
-#### Step 3: Update and Deploy StoaQuestionFactory
+#### Step 2: Update and Deploy StoaQuestionFactory
 1. Update the contract addresses in `script/DeployStoaQuestionFactory.s.sol`:
 ```solidity
-address constant REPUTATION = 0x...; // Address from Step 1
-address constant PROTOCOL_REGISTRY = 0x...; // Address from Step 2
+address constant PROTOCOL_REGISTRY = 0x...; // Address from Step 1
 ```
 
 2. Deploy the factory:

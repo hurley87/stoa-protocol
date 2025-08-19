@@ -5,7 +5,6 @@ import "openzeppelin-contracts/access/Ownable.sol";
 
 import "openzeppelin-contracts/token/ERC20/IERC20.sol";
 import "./StoaBase.sol";
-import "./StoaReputation.sol";
 
 contract StoaQuestion is StoaBase {
     struct Answer {
@@ -18,7 +17,6 @@ contract StoaQuestion is StoaBase {
 
     IERC20 public token; // Single token for everything
     address public evaluator;
-    StoaReputation public reputation;
 
     uint256 public submissionCost;
     uint256 public totalRewardPool; // Single reward pool
@@ -62,8 +60,7 @@ contract StoaQuestion is StoaBase {
         uint256 _duration,
         uint8 _maxWinners,
         address _evaluator,
-        address _treasury,
-        address _reputation
+        address _treasury
     ) StoaBase(_treasury) {
         token = IERC20(_token);
         submissionCost = _submissionCost;
@@ -71,7 +68,6 @@ contract StoaQuestion is StoaBase {
         evaluationDeadline = endsAt + 7 days; // 7 days after question ends
         maxWinners = _maxWinners;
         evaluator = _evaluator;
-        reputation = StoaReputation(_reputation);
         creator = msg.sender;
     }
 

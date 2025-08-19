@@ -5,7 +5,6 @@ import "forge-std/Test.sol";
 import "../src/StoaQuestionFactory.sol";
 import "../src/StoaQuestion.sol";
 import "../src/StoaProtocol.sol";
-import "../src/StoaReputation.sol";
 import "openzeppelin-contracts/token/ERC20/ERC20.sol";
 
 // Mock ERC20 token for testing
@@ -27,7 +26,6 @@ contract MockToken is ERC20 {
 contract StoaQuestionFactoryTest is Test {
     StoaQuestionFactory public factory;
     StoaProtocol public protocolRegistry;
-    StoaReputation public reputation;
     MockToken public paymentToken;
     MockToken public rewardToken;
 
@@ -75,11 +73,10 @@ contract StoaQuestionFactoryTest is Test {
         // Deploy mock contracts
         paymentToken = new MockToken("PaymentToken", "PAY");
         rewardToken = new MockToken("RewardToken", "REW");
-        reputation = new StoaReputation();
         protocolRegistry = new StoaProtocol();
 
         // Deploy factory
-        factory = new StoaQuestionFactory(evaluator, treasury, address(reputation), address(protocolRegistry));
+        factory = new StoaQuestionFactory(evaluator, treasury, address(protocolRegistry));
 
         // Transfer protocol registry ownership to factory so it can register questions
         protocolRegistry.transferOwnership(address(factory));
@@ -102,7 +99,6 @@ contract StoaQuestionFactoryTest is Test {
     }
 
     function test_constructor_SetsReputationCorrectly() public {
-        assertEq(factory.reputation(), address(reputation));
     }
 
     function test_constructor_SetsProtocolRegistryCorrectly() public {
@@ -243,7 +239,6 @@ contract StoaQuestionFactoryTest is Test {
         assertEq(question.endsAt(), block.timestamp + DURATION_1);
         assertEq(question.maxWinners(), MAX_WINNERS_1);
         assertEq(question.evaluator(), evaluator);
-        assertEq(address(question.reputation()), address(reputation));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -412,7 +407,6 @@ contract StoaQuestionFactoryTest is Test {
         // Question should be properly initialized
         assertEq(address(question.token()), address(paymentToken));
         assertEq(question.evaluator(), evaluator);
-        assertEq(address(question.reputation()), address(reputation));
     }
 
     /*//////////////////////////////////////////////////////////////

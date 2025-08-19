@@ -16,19 +16,17 @@ contract DeployStoaQuestionFactoryScript is Script {
     // Contract addresses
     address constant EVALUATOR = 0xBe523e724B9Ea7D618dD093f14618D90c4B19b0c;
     address constant TREASURY = 0xbD78783a26252bAf756e22f0DE764dfDcDa7733c;
-    address constant REPUTATION = 0x2BaFEA8e13cFbE7f58c1D3Aa200560ea098ACFF3;
     address constant PROTOCOL_REGISTRY = 0x50e68d23a211d01E68C9812c9fcb1B84C94dc02B;
 
     function run() public {
         vm.broadcast(vm.envUint("DEPLOYER_PRIVATE_KEY"));
 
         StoaQuestionFactory questionFactory =
-            new StoaQuestionFactory(EVALUATOR, TREASURY, REPUTATION, PROTOCOL_REGISTRY);
+            new StoaQuestionFactory(EVALUATOR, TREASURY, PROTOCOL_REGISTRY);
 
         console.log("StoaQuestionFactory deployed at:", address(questionFactory));
         console.log("Evaluator:", questionFactory.evaluator());
         console.log("Treasury:", questionFactory.treasury());
-        console.log("Reputation:", questionFactory.reputation());
         console.log("Protocol Registry:", address(questionFactory.protocolRegistry()));
         console.log("Owner:", questionFactory.owner());
         console.log("Question Count:", questionFactory.questionCount());

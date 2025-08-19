@@ -9,7 +9,6 @@ import "openzeppelin-contracts/token/ERC20/IERC20.sol";
 contract StoaQuestionFactory is Ownable {
     address public evaluator;
     address public treasury;
-    address public reputation;
     StoaProtocol public protocolRegistry;
 
     uint256 public questionCount;
@@ -27,11 +26,10 @@ contract StoaQuestionFactory is Ownable {
         uint256 seedAmount
     );
 
-    constructor(address _evaluator, address _treasury, address _reputation, address _protocolRegistry) {
+    constructor(address _evaluator, address _treasury, address _protocolRegistry) {
         _transferOwnership(msg.sender);
         evaluator = _evaluator;
         treasury = _treasury;
-        reputation = _reputation;
         protocolRegistry = StoaProtocol(_protocolRegistry);
     }
 
@@ -49,7 +47,7 @@ contract StoaQuestionFactory is Ownable {
         require(isWhitelisted[msg.sender], "Not whitelisted");
         require(token != address(0), "Invalid token");
 
-        StoaQuestion q = new StoaQuestion(token, submissionCost, duration, maxWinners, evaluator, treasury, reputation);
+        StoaQuestion q = new StoaQuestion(token, submissionCost, duration, maxWinners, evaluator, treasury);
 
         q.transferOwnership(msg.sender);
 

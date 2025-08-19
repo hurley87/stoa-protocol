@@ -8,7 +8,6 @@ export const StoaQuestionABI = [
       {"internalType": "uint8", "name": "_maxWinners", "type": "uint8"},
       {"internalType": "address", "name": "_evaluator", "type": "address"},
       {"internalType": "address", "name": "_treasury", "type": "address"},
-      {"internalType": "address", "name": "_reputation", "type": "address"}
     ],
     "stateMutability": "nonpayable",
     "type": "constructor"
@@ -85,13 +84,6 @@ export const StoaQuestionABI = [
     "inputs": [],
     "name": "evaluator",
     "outputs": [{"internalType": "address", "name": "", "type": "address"}],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "reputation",
-    "outputs": [{"internalType": "contract StoaReputation", "name": "", "type": "address"}],
     "stateMutability": "view",
     "type": "function"
   },

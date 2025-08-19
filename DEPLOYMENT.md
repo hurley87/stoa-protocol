@@ -6,9 +6,8 @@ The Stoa Protocol consists of three main contracts that need to be deployed in a
 
 ## Contract Architecture
 
-1. **StoaReputation** - Reputation tracking system (standalone)
-2. **StoaProtocol** - Main protocol registry (standalone)  
-3. **StoaQuestionFactory** - Question creation factory (depends on StoaReputation and StoaProtocol)
+1. **StoaProtocol** - Main protocol registry (standalone)  
+2. **StoaQuestionFactory** - Question creation factory (depends on StoaProtocol)
 
 ## Prerequisites
 
@@ -20,26 +19,7 @@ The Stoa Protocol consists of three main contracts that need to be deployed in a
 
 ## Deployment Order
 
-### Step 1: Deploy StoaReputation
-
-The reputation system is independent and should be deployed first.
-
-```bash
-# Simulate deployment (recommended first)
-forge script script/DeployStoaReputation.s.sol --fork-url $RPC_URL -vvvv
-
-# Deploy for real
-forge script script/DeployStoaReputation.s.sol --fork-url $RPC_URL --broadcast --verify
-```
-
-**Expected Output:**
-- Contract address for StoaReputation
-- Initial decay rate (should be 9500)
-- Owner address (deployer)
-
-**Save the StoaReputation address** - you'll need it for Step 3.
-
-### Step 2: Deploy StoaProtocol
+### Step 1: Deploy StoaProtocol
 
 The main protocol registry is also independent.
 
@@ -56,21 +36,20 @@ forge script script/DeployStoaProtocol.s.sol --fork-url $RPC_URL --broadcast --v
 - Owner address (deployer)
 - Initial question count (should be 0)
 
-**Save the StoaProtocol address** - you'll need it for Step 3.
+**Save the StoaProtocol address** - you'll need it for Step 2.
 
-### Step 3: Deploy StoaQuestionFactory
+### Step 2: Deploy StoaQuestionFactory
 
-The factory depends on both previous contracts and requires updating the script with their addresses.
+The factory depends on the protocol registry and requires updating the script with its address.
 
-1. **Update the deployment script** with the addresses from Steps 1 and 2:
+1. **Update the deployment script** with the address from Step 1:
 
 ```solidity
 // In script/DeployStoaQuestionFactory.s.sol
-address constant REPUTATION = 0x...; // Address from Step 1
-address constant PROTOCOL_REGISTRY = 0x...; // Address from Step 2
+address constant PROTOCOL_REGISTRY = 0x...; // Address from Step 1
 ```
 
-2. **Deploy the factory:**
+2. **Deploy the factory:
 
 ```bash
 # Simulate deployment
@@ -84,7 +63,6 @@ forge script script/DeployStoaQuestionFactory.s.sol --fork-url $RPC_URL --broadc
 - Contract address for StoaQuestionFactory
 - Evaluator address
 - Treasury address  
-- Reputation contract address
 - Protocol registry address
 - Owner address (deployer)
 - Initial question count (should be 0)
@@ -93,13 +71,7 @@ forge script script/DeployStoaQuestionFactory.s.sol --fork-url $RPC_URL --broadc
 
 ### Required Actions
 
-1. **Set up reputation system ownership:**
-   ```bash
-   # Transfer StoaReputation ownership to StoaQuestionFactory if questions should manage reputation
-   cast send $REPUTATION_ADDRESS "transferOwnership(address)" $QUESTION_FACTORY_ADDRESS --private-key $DEPLOYER_PRIVATE_KEY --rpc-url $RPC_URL
-   ```
-
-2. **Configure fees (optional):**
+1. **Configure fees (optional):**
    ```bash
    # Update protocol fee (default is 10%)
    cast send $QUESTION_FACTORY_ADDRESS "setFeeBps(uint256)" 500 --private-key $DEPLOYER_PRIVATE_KEY --rpc-url $RPC_URL
@@ -108,7 +80,7 @@ forge script script/DeployStoaQuestionFactory.s.sol --fork-url $RPC_URL --broadc
    cast send $QUESTION_FACTORY_ADDRESS "setCreatorFeeBps(uint256)" 500 --private-key $DEPLOYER_PRIVATE_KEY --rpc-url $RPC_URL
    ```
 
-3. **Update treasury address (if needed):**
+2. **Update treasury address (if needed):**
    ```bash
    cast send $QUESTION_FACTORY_ADDRESS "setTreasury(address)" $NEW_TREASURY_ADDRESS --private-key $DEPLOYER_PRIVATE_KEY --rpc-url $RPC_URL
    ```
@@ -142,7 +114,6 @@ export DEPLOYER_PRIVATE_KEY="0x..."
 export RPC_URL="https://..."
 
 # Contract addresses (update during deployment)
-export REPUTATION_ADDRESS="0x..."
 export PROTOCOL_ADDRESS="0x..."
 export FACTORY_ADDRESS="0x..."
 
@@ -188,7 +159,6 @@ After successful deployment, record your addresses:
 
 ```
 Network: [NETWORK_NAME]
-StoaReputation: 0x...
 StoaProtocol: 0x...
 StoaQuestionFactory: 0x...
 Deployment Block: [BLOCK_NUMBER]

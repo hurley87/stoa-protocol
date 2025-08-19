@@ -3,7 +3,6 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import "../src/StoaQuestion.sol";
-import "../src/StoaReputation.sol";
 import "openzeppelin-contracts/token/ERC20/ERC20.sol";
 
 // Mock ERC20 token for testing
@@ -19,7 +18,6 @@ contract MockToken is ERC20 {
 
 contract StoaQuestionTest is Test {
     StoaQuestion public question;
-    StoaReputation public reputation;
     MockToken public paymentToken; // Single token for everything
 
     address public owner;
@@ -58,16 +56,13 @@ contract StoaQuestionTest is Test {
 
         // Deploy token and reputation system
         paymentToken = new MockToken("PaymentToken", "PAY");
-        reputation = new StoaReputation();
 
         // Deploy question contract with single token
         vm.prank(creator);
         question = new StoaQuestion(
-            address(paymentToken), SUBMISSION_COST, DURATION, MAX_WINNERS, evaluator, treasury, address(reputation)
+            address(paymentToken), SUBMISSION_COST, DURATION, MAX_WINNERS, evaluator, treasury
         );
 
-        // Set question as owner of reputation system
-        reputation.transferOwnership(address(question));
 
         // Distribute tokens to users
         paymentToken.mint(user1, INITIAL_BALANCE);
@@ -98,7 +93,6 @@ contract StoaQuestionTest is Test {
         assertEq(question.maxWinners(), MAX_WINNERS);
         assertEq(question.evaluator(), evaluator);
         assertEq(question.treasury(), treasury);
-        assertEq(address(question.reputation()), address(reputation));
         assertEq(question.creator(), creator);
         assertEq(question.feeBps(), 1000); // 10% default fee
         assertEq(question.totalRewardPool(), 0);
@@ -212,8 +206,6 @@ contract StoaQuestionTest is Test {
     }
 
     function testSubmitAnswerWithZeroSubmissionCost() public {
-        // Deploy new reputation contract for this test
-        StoaReputation newReputation = new StoaReputation();
 
         // Deploy new question with zero submission cost
         vm.prank(creator);
@@ -223,12 +215,9 @@ contract StoaQuestionTest is Test {
             DURATION,
             MAX_WINNERS,
             evaluator,
-            treasury,
-            address(newReputation)
+            treasury
         );
 
-        // Transfer ownership of new reputation to new question
-        newReputation.transferOwnership(address(zeroFeeQuestion));
 
         vm.prank(user1);
         zeroFeeQuestion.submitAnswer(keccak256("Free answer"));
