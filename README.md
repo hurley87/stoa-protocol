@@ -1,136 +1,155 @@
-![LazerForge Logo](.github/lazerforge_logo_pink.png)
+# Stoa Protocol
 
-# LazerForge
+A decentralized Q&A platform where users can ask questions, provide answers, and earn rewards based on the quality of their contributions. The protocol features a reputation system, creator economy incentives, and fair reward distribution.
 
-LazerForge is a Foundry template for smart contract development. For more information on Foundry check out the [foundry book](https://book.getfoundry.sh/).
+## Architecture
 
-## Overview
+The Stoa Protocol consists of three main smart contracts:
 
-LazerForge is a batteries included template with the following configurations:
+- **StoaReputation**: Tracks user reputation with time-based decay
+- **StoaProtocol**: Main protocol registry for question management  
+- **StoaQuestionFactory**: Factory for creating and managing individual questions
+- **StoaQuestion**: Individual question contracts with answer submission and reward distribution
 
-- [OpenZeppelin](https://github.com/OpenZeppelin/openzeppelin-contracts), [Solady](https://github.com/Vectorized/solady), and the full Uniswap suite ([v2](https://github.com/uniswap/v2-core), [v3-core](https://github.com/uniswap/v3-core) & [v3-periphery](https://github.com/uniswap/v3-periphery), [v4-core](https://github.com/uniswap/v4-core) & [v4-periphery](https://github.com/uniswap/v4-periphery)) smart contracts are included as dependencies along with [`solc` remappings](https://docs.soliditylang.org/en/latest/path-resolution.html#import-remapping) so you can work with a wide range of deployed contracts out of the box!
-- `forge fmt` configured as the default formatter for VSCode projects
-- Github Actions workflows that run `forge fmt --check` and `forge test` on every push and PR
-  - A separate action to automatically fix formatting issues on PRs by commenting `!fix` on the PR
-- A pre-configured, but still minimal `foundry.toml`
-  - multiple profiles for various development and testing scenarios (see [LazerForge Profiles](lazerTutorial/profiles.md))
-  - high optimizer settings by default for gas-efficient smart contracts
-  - an explicit `solc` compiler version for reproducible builds
-  - no extra injected `solc` metadata for simpler Etherscan verification and [deterministic cross-chain deploys via CREATE2](https://0xfoobar.substack.com/p/vanity-addresses).
-  - block height and timestamp variables for [deterministic testing](lazerTutorial/testing.md)
-  - mapped [network identifiers](lazerTutorial/networks.md) to RPC URLs and Etherscan API keys using environment variables
+### Key Features
+
+- **Public Question Creation**: Anyone can create questions (no access restrictions)
+- **Single Token Economy**: Simplified architecture using one ERC20 token for fees and rewards
+- **Creator Incentives**: Question creators earn configurable percentage of submission fees
+- **Fair Reward Distribution**: Rewards distributed proportionally based on answer quality scores
+- **Emergency Recovery**: Users can claim refunds if evaluations are delayed beyond deadline
+- **Gas Optimized**: Cached scoring system for efficient reward calculations
 
 ## Quick Start
 
 1. Install Foundry:
-
 ```bash
 curl -L https://foundry.paradigm.xyz | bash
 foundryup
 ```
 
-2. Create a new project:
-
-```bash
-forge init --template lazertechnologies/lazerforge <project_name>
-```
-
-> 💡 To install a [minimal](#branch-structure) template without tutorials and extra dependencies:
->
-> ```bash
-> forge init --template lazertechnologies/lazerforge --branch minimal <project_name>
-> ```
-
-1. Build the project:
-
+2. Build the project:
 ```bash
 forge build
 ```
 
-## Branch Structure
-
-LazerForge maintains two primary branches to cater to different needs:
-
-- **`main` Branch**: Contains tutorials, additional example contracts, and comprehensive dependencies.
-- **`minimal` Branch**: Provides a lightweight template without extra tutorials and dependencies.
-
-For detailed info on branches and contribution, check out the [Contributing Guide](CONTRIBUTING.md).
-
-## Syncing Changes Between Branches
-
-We use a dedicated synchronization workflow to maintain consistency between branches while respecting their different purposes.
-
-**To sync changes from `main` to `minimal`:**
-
-1. Ensure your changes are merged to `main` first
-2. Run the sync script:
-
+3. Run tests:
 ```bash
-./tools/sync-to-minimal.sh
+forge test
 ```
 
-3. The script will:
+## Deployment
 
-   - Update a dedicated sync branch with the latest from `main`
-   - Open a PR creation page targeting `minimal`
+The Stoa Protocol is deployed on **Base Mainnet** with the following addresses:
 
-4. During PR review:
-   - Verify only appropriate files are included
-   - Exclude tutorial content or other files not needed in `minimal`
+| Contract | Address | Basescan |
+|----------|---------|----------|
+| **StoaReputation** | `0x5eAad9617C589E1B3030D27131dC0bf77AB08A77` | [View](https://basescan.org/address/0x5eaad9617c589e1b3030d27131dc0bf77ab08a77) |
+| **StoaProtocol** | `0x28848AfD006aC2A1E571eba5079Ea6C6EC3504FB` | [View](https://basescan.org/address/0x28848afd006ac2a1e571eba5079ea6c6ec3504fb) |
+| **StoaQuestionFactory** | `0x79e343Ab7144d0A2cE9e6515281BF13691797FC0` | [View](https://basescan.org/address/0x79e343ab7144d0a2ce9e6515281bf13691797fc0) |
 
-**For emergency fixes in `minimal`:**
+### Deploy Your Own Instance
 
-If you need to make a hotfix directly to `minimal` and then sync back to `main`:
+To deploy the Stoa Protocol to a new network, follow these steps in order:
 
-1. Make and merge your changes to `minimal`
-2. Run:
-
+#### Prerequisites
+Set up your environment variables:
 ```bash
-./tools/sync-to-main.sh
+export DEPLOYER_PRIVATE_KEY="0x..."
+export BASE_RPC_URL="https://api.developer.coinbase.com/rpc/v1/base/YOUR_API_KEY"
+export BASESCAN_API_KEY="YOUR_BASESCAN_API_KEY"
 ```
 
-3. Complete a PR to sync these changes back to `main`
-
-> Always make feature development PRs to `main` first, and use the sync scripts rather than manually cherry-picking to maintain consistency.
-
-## Documentation
-
-For detailed guides on various aspects of LazerForge, check out:
-
-- [Setup Guide](lazerTutorial/setup.md) - Initial setup and configuration
-- [Testing Guide](lazerTutorial/testing.md) - Writing and running tests
-- [Deployment Guide](lazerTutorial/deployment.md) - Deploying contracts
-- [Network Configuration](lazerTutorial/networks.md) - Setting up networks and RPC endpoints
-- [Profiles](lazerTutorial/profiles.md) - Using different Foundry profiles
-
-## Reinitialize Submodules
-
-When working across branches with different dependencies, submodules may need to be reinitialized. Run
-
+#### Step 1: Deploy StoaReputation
 ```bash
-./reinit-submodules
+forge script script/DeployStoaReputation.s.sol \
+  --fork-url $BASE_RPC_URL \
+  --broadcast \
+  --verify \
+  --etherscan-api-key $BASESCAN_API_KEY
 ```
 
-## Gas Snapshots
+#### Step 2: Deploy StoaProtocol
+```bash
+forge script script/DeployStoaProtocol.s.sol \
+  --fork-url $BASE_RPC_URL \
+  --broadcast \
+  --verify \
+  --etherscan-api-key $BASESCAN_API_KEY
+```
 
-Forge can generate gas snapshots for all test functions to see how much gas contracts will consume, or to compare gas usage before and after optimizations.
+#### Step 3: Update and Deploy StoaQuestionFactory
+1. Update the contract addresses in `script/DeployStoaQuestionFactory.s.sol`:
+```solidity
+address constant REPUTATION = 0x...; // Address from Step 1
+address constant PROTOCOL_REGISTRY = 0x...; // Address from Step 2
+```
 
-```shell
+2. Deploy the factory:
+```bash
+forge script script/DeployStoaQuestionFactory.s.sol \
+  --fork-url $BASE_RPC_URL \
+  --broadcast \
+  --verify \
+  --etherscan-api-key $BASESCAN_API_KEY
+```
+
+For detailed deployment instructions, see [DEPLOYMENT.md](./DEPLOYMENT.md).
+
+## Usage
+
+### Creating a Question
+
+Anyone can create a question by calling the factory contract:
+
+```solidity
+// Create a new question
+questionFactory.createQuestion(
+    tokenAddress,      // ERC20 token for fees/rewards
+    submissionCost,    // Cost to submit an answer
+    duration,          // Question duration in seconds
+    maxWinners,        // Maximum number of winners
+    evaluatorAddress   // Address that can evaluate answers
+);
+```
+
+### Fee Structure
+
+The protocol uses a dual-fee system:
+- **Protocol Fee**: Default 10% (1000 basis points) - goes to treasury
+- **Creator Fee**: Default 10% (1000 basis points) - goes to question creator
+- **Reward Pool**: Remaining 80% - distributed to answer providers based on scores
+
+Example: For a 10 token submission cost:
+- 1 token → Protocol treasury
+- 1 token → Question creator  
+- 8 tokens → Added to reward pool
+
+### Answer Lifecycle
+
+1. **Submission**: Users pay submission cost to provide answers
+2. **Evaluation**: Evaluator ranks answers after question deadline
+3. **Reward Distribution**: Winners claim rewards proportional to their scores
+4. **Emergency Refund**: Users can claim refunds if evaluation is delayed >7 days
+
+## Testing
+
+Run the full test suite:
+```bash
+forge test -vvv
+```
+
+Generate gas reports:
+```bash
 forge snapshot
 ```
 
-## Coverage Reports
-
-If you plan on generating coverage reports, you'll need to install [`lcov`](https://github.com/linux-test-project/lcov) as well.
-
-On macOS, you can do this with the following command:
-
+Generate coverage reports:
 ```bash
-brew install lcov
+forge coverage
 ```
 
-To generate reports, run
+## Documentation
 
-```bash
-./coverage-report
-```
+- [DEPLOYMENT.md](./DEPLOYMENT.md) - Comprehensive deployment guide
+- [Architecture Overview](./src/) - Smart contract documentation
