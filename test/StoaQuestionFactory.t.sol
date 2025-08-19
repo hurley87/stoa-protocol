@@ -98,8 +98,7 @@ contract StoaQuestionFactoryTest is Test {
         assertEq(factory.treasury(), treasury);
     }
 
-    function test_constructor_SetsReputationCorrectly() public {
-    }
+    function test_constructor_SetsReputationCorrectly() public {}
 
     function test_constructor_SetsProtocolRegistryCorrectly() public {
         assertEq(address(factory.protocolRegistry()), address(protocolRegistry));

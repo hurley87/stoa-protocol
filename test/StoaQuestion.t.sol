@@ -59,10 +59,7 @@ contract StoaQuestionTest is Test {
 
         // Deploy question contract with single token
         vm.prank(creator);
-        question = new StoaQuestion(
-            address(paymentToken), SUBMISSION_COST, DURATION, MAX_WINNERS, evaluator, treasury
-        );
-
+        question = new StoaQuestion(address(paymentToken), SUBMISSION_COST, DURATION, MAX_WINNERS, evaluator, treasury);
 
         // Distribute tokens to users
         paymentToken.mint(user1, INITIAL_BALANCE);
@@ -206,7 +203,6 @@ contract StoaQuestionTest is Test {
     }
 
     function testSubmitAnswerWithZeroSubmissionCost() public {
-
         // Deploy new question with zero submission cost
         vm.prank(creator);
         StoaQuestion zeroFeeQuestion = new StoaQuestion(
@@ -217,7 +213,6 @@ contract StoaQuestionTest is Test {
             evaluator,
             treasury
         );
-
 
         vm.prank(user1);
         zeroFeeQuestion.submitAnswer(keccak256("Free answer"));

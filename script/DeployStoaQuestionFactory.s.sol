@@ -21,8 +21,7 @@ contract DeployStoaQuestionFactoryScript is Script {
     function run() public {
         vm.broadcast(vm.envUint("DEPLOYER_PRIVATE_KEY"));
 
-        StoaQuestionFactory questionFactory =
-            new StoaQuestionFactory(EVALUATOR, TREASURY, PROTOCOL_REGISTRY);
+        StoaQuestionFactory questionFactory = new StoaQuestionFactory(EVALUATOR, TREASURY, PROTOCOL_REGISTRY);
 
         console.log("StoaQuestionFactory deployed at:", address(questionFactory));
         console.log("Evaluator:", questionFactory.evaluator());
