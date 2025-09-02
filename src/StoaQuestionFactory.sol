@@ -44,6 +44,7 @@ contract StoaQuestionFactory is Ownable {
     ) external returns (address) {
         require(isWhitelisted[msg.sender], "Not whitelisted");
         require(token != address(0), "Invalid token");
+        require(submissionCost > 0, "Submission cost must be greater than 0");
 
         StoaQuestion q = new StoaQuestion(token, submissionCost, duration, maxWinners, treasury, msg.sender);
 
