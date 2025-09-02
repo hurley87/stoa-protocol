@@ -27,12 +27,10 @@ contract StoaQuestionFactoryTest is Test {
     StoaQuestionFactory public factory;
     StoaProtocol public protocolRegistry;
     MockToken public paymentToken;
-    MockToken public rewardToken;
 
     // Test addresses
     address public owner;
     address public nonOwner;
-    address public evaluator;
     address public treasury;
     address public creator1;
     address public creator2;
@@ -53,8 +51,7 @@ contract StoaQuestionFactoryTest is Test {
         uint256 indexed questionId,
         address indexed question,
         address indexed creator,
-        address paymentToken,
-        address rewardToken,
+        address token,
         uint256 submissionCost,
         uint256 duration,
         uint8 maxWinners,
@@ -64,19 +61,17 @@ contract StoaQuestionFactoryTest is Test {
     function setUp() public {
         owner = address(this);
         nonOwner = vm.addr(1);
-        evaluator = vm.addr(2);
-        treasury = vm.addr(3);
-        creator1 = vm.addr(4);
-        creator2 = vm.addr(5);
-        nonWhitelistedUser = vm.addr(6);
+        treasury = vm.addr(2);
+        creator1 = vm.addr(3);
+        creator2 = vm.addr(4);
+        nonWhitelistedUser = vm.addr(5);
 
         // Deploy mock contracts
         paymentToken = new MockToken("PaymentToken", "PAY");
-        rewardToken = new MockToken("RewardToken", "REW");
         protocolRegistry = new StoaProtocol();
 
         // Deploy factory
-        factory = new StoaQuestionFactory(evaluator, treasury, address(protocolRegistry));
+        factory = new StoaQuestionFactory(treasury, address(protocolRegistry));
 
         // Transfer protocol registry ownership to factory so it can register questions
         protocolRegistry.transferOwnership(address(factory));
@@ -88,10 +83,6 @@ contract StoaQuestionFactoryTest is Test {
 
     function test_constructor_SetsOwnerCorrectly() public {
         assertEq(factory.owner(), owner);
-    }
-
-    function test_constructor_SetsEvaluatorCorrectly() public {
-        assertEq(factory.evaluator(), evaluator);
     }
 
     function test_constructor_SetsTreasuryCorrectly() public {
@@ -237,7 +228,7 @@ contract StoaQuestionFactoryTest is Test {
         assertEq(question.submissionCost(), SUBMISSION_COST_1);
         assertEq(question.endsAt(), block.timestamp + DURATION_1);
         assertEq(question.maxWinners(), MAX_WINNERS_1);
-        assertEq(question.evaluator(), evaluator);
+        assertEq(question.creator(), owner);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -304,6 +295,62 @@ contract StoaQuestionFactoryTest is Test {
         assertTrue(questionAddress != address(0));
         StoaQuestion question = StoaQuestion(questionAddress);
         assertEq(question.maxWinners(), type(uint8).max);
+    }
+
+    function test_createQuestion_VerifyReferralFeeConfiguration() public {
+        factory.whitelistCreator(owner, true);
+
+        address questionAddress =
+            factory.createQuestion(address(paymentToken), SUBMISSION_COST_1, DURATION_1, MAX_WINNERS_1, 0);
+
+        StoaQuestion question = StoaQuestion(questionAddress);
+
+        // Verify that the question has the default referral fee configuration
+        assertEq(question.referralFeeBps(), 500); // Default 5% referral fee
+        assertEq(question.feeBps(), 1000); // Default 10% protocol fee
+        assertEq(question.creatorFeeBps(), 1000); // Default 10% creator fee
+
+        // Verify the question is owned by the correct creator
+        assertEq(question.owner(), owner);
+        assertEq(question.creator(), owner);
+    }
+
+    function test_createQuestion_ReferralFunctionalityWorks() public {
+        factory.whitelistCreator(creator1, true);
+
+        // Create tokens for the creator
+        paymentToken.transfer(creator1, 1000 ether);
+
+        vm.prank(creator1);
+        address questionAddress =
+            factory.createQuestion(address(paymentToken), SUBMISSION_COST_1, DURATION_1, MAX_WINNERS_1, 0);
+
+        StoaQuestion question = StoaQuestion(questionAddress);
+
+        // Setup test users
+        address user = vm.addr(100);
+        address referrer = vm.addr(101);
+
+        // Give user tokens and approve
+        paymentToken.transfer(user, 10 ether);
+        vm.prank(user);
+        paymentToken.approve(questionAddress, type(uint256).max);
+
+        uint256 referrerBalanceBefore = paymentToken.balanceOf(referrer);
+
+        // Submit answer with referral
+        vm.prank(user);
+        question.submitAnswerWithReferral(keccak256("Test answer"), referrer);
+
+        // Verify referrer received payment
+        uint256 expectedReferralCut = (SUBMISSION_COST_1 * 500) / 10000; // 5% of submission cost
+        assertEq(paymentToken.balanceOf(referrer) - referrerBalanceBefore, expectedReferralCut);
+
+        // Verify answer was recorded
+        assertEq(question.userAnswerIndex(user), 1); // 1-indexed
+
+        // Verify question owner can still manage the question
+        assertEq(question.owner(), creator1);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -405,7 +452,7 @@ contract StoaQuestionFactoryTest is Test {
 
         // Question should be properly initialized
         assertEq(address(question.token()), address(paymentToken));
-        assertEq(question.evaluator(), evaluator);
+        assertEq(question.creator(), owner);
     }
 
     /*//////////////////////////////////////////////////////////////

@@ -32,10 +32,10 @@ contract StoaProtocol is Ownable {
         uint256 submissionCost,
         uint256 duration,
         uint8 maxWinners
-    ) external onlyOwner {
+    ) external {
         require(questionAddress != address(0), "Invalid question address");
         require(creator != address(0), "Invalid creator address");
-        require(submissionCost > 0, "Submission cost must be greater than 0");
+        require(submissionCost >= 0, "Submission cost must be >= 0");
         require(duration > 0, "Duration must be greater than 0");
 
         allQuestions.push(

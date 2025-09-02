@@ -6,12 +6,14 @@ import "openzeppelin-contracts/access/Ownable.sol";
 abstract contract StoaBase is Ownable {
     uint256 public feeBps = 1000; // 10% protocol fee
     uint256 public creatorFeeBps = 1000; // 10% creator fee (same as protocol fee)
+    uint256 public referralFeeBps = 500; // 5% referral fee
     address public treasury;
 
     uint256 private constant BASIS_POINTS = 10000; // 100% = 10000 basis points
 
     event FeeUpdated(uint256 newFeeBps);
     event CreatorFeeUpdated(uint256 newCreatorFeeBps);
+    event ReferralFeeUpdated(uint256 newReferralFeeBps);
     event TreasuryUpdated(address newTreasury);
 
     constructor(address _treasury) {
@@ -30,6 +32,12 @@ abstract contract StoaBase is Ownable {
         require(newCreatorFeeBps <= BASIS_POINTS, "Creator fee cannot exceed 100%");
         creatorFeeBps = newCreatorFeeBps;
         emit CreatorFeeUpdated(newCreatorFeeBps);
+    }
+
+    function setReferralFeeBps(uint256 newReferralFeeBps) external onlyOwner {
+        require(newReferralFeeBps <= BASIS_POINTS, "Referral fee cannot exceed 100%");
+        referralFeeBps = newReferralFeeBps;
+        emit ReferralFeeUpdated(newReferralFeeBps);
     }
 
     function setTreasury(address newTreasury) external onlyOwner {

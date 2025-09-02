@@ -18,6 +18,7 @@ contract StoaBaseTest is Test {
 
     event FeeUpdated(uint256 newFeeBps);
     event CreatorFeeUpdated(uint256 newCreatorFeeBps);
+    event ReferralFeeUpdated(uint256 newReferralFeeBps);
     event TreasuryUpdated(address newTreasury);
 
     function setUp() public {
@@ -35,6 +36,7 @@ contract StoaBaseTest is Test {
         assertEq(stoaBase.owner(), owner);
         assertEq(stoaBase.feeBps(), 1000); // Default 10% protocol fee
         assertEq(stoaBase.creatorFeeBps(), 1000); // Default 10% creator fee
+        assertEq(stoaBase.referralFeeBps(), 500); // Default 5% referral fee
     }
 
     function testConstructorRevertsWithZeroTreasury() public {
@@ -282,6 +284,73 @@ contract StoaBaseTest is Test {
         assertEq(stoaBase.creatorFeeBps(), newCreatorFeeBps);
     }
 
+    // Referral Fee Tests
+    function testSetReferralFeeBpsAsOwner() public {
+        uint256 newReferralFeeBps = 750; // 7.5%
+
+        vm.expectEmit(true, false, false, true);
+        emit ReferralFeeUpdated(newReferralFeeBps);
+
+        stoaBase.setReferralFeeBps(newReferralFeeBps);
+
+        assertEq(stoaBase.referralFeeBps(), newReferralFeeBps);
+    }
+
+    function testSetReferralFeeBpsAsNonOwner() public {
+        uint256 newReferralFeeBps = 750;
+
+        vm.prank(nonOwner);
+        vm.expectRevert();
+        stoaBase.setReferralFeeBps(newReferralFeeBps);
+
+        // Referral fee should remain unchanged
+        assertEq(stoaBase.referralFeeBps(), 500);
+    }
+
+    function testSetReferralFeeBpsRevertsAboveMax() public {
+        uint256 invalidReferralFeeBps = 10001; // Above 100%
+
+        vm.expectRevert("Referral fee cannot exceed 100%");
+        stoaBase.setReferralFeeBps(invalidReferralFeeBps);
+    }
+
+    function testSetReferralFeeBpsToZero() public {
+        uint256 newReferralFeeBps = 0;
+
+        vm.expectEmit(true, false, false, true);
+        emit ReferralFeeUpdated(newReferralFeeBps);
+
+        stoaBase.setReferralFeeBps(newReferralFeeBps);
+
+        assertEq(stoaBase.referralFeeBps(), newReferralFeeBps);
+    }
+
+    function testSetReferralFeeBpsToMaxValue() public {
+        uint256 newReferralFeeBps = 10000; // 100%
+
+        vm.expectEmit(true, false, false, true);
+        emit ReferralFeeUpdated(newReferralFeeBps);
+
+        stoaBase.setReferralFeeBps(newReferralFeeBps);
+
+        assertEq(stoaBase.referralFeeBps(), newReferralFeeBps);
+    }
+
+    function testSetReferralFeeBpsMultipleTimes() public {
+        uint256[] memory feeValues = new uint256[](3);
+        feeValues[0] = 250; // 2.5%
+        feeValues[1] = 750; // 7.5%
+        feeValues[2] = 1250; // 12.5%
+
+        for (uint256 i = 0; i < feeValues.length; i++) {
+            vm.expectEmit(true, false, false, true);
+            emit ReferralFeeUpdated(feeValues[i]);
+
+            stoaBase.setReferralFeeBps(feeValues[i]);
+            assertEq(stoaBase.referralFeeBps(), feeValues[i]);
+        }
+    }
+
     // Fuzz Tests
     function testFuzzSetFeeBps(uint256 feeBps) public {
         vm.assume(feeBps <= 10000);
@@ -293,6 +362,12 @@ contract StoaBaseTest is Test {
         vm.assume(creatorFeeBps <= 10000);
         stoaBase.setCreatorFeeBps(creatorFeeBps);
         assertEq(stoaBase.creatorFeeBps(), creatorFeeBps);
+    }
+
+    function testFuzzSetReferralFeeBps(uint256 referralFeeBps) public {
+        vm.assume(referralFeeBps <= 10000);
+        stoaBase.setReferralFeeBps(referralFeeBps);
+        assertEq(stoaBase.referralFeeBps(), referralFeeBps);
     }
 
     function testFuzzSetTreasury(address _treasury) public {
@@ -313,14 +388,20 @@ contract StoaBaseTest is Test {
     function testViewFunctions() public {
         // Test that view functions return correct values
         assertEq(stoaBase.feeBps(), 1000);
+        assertEq(stoaBase.creatorFeeBps(), 1000);
+        assertEq(stoaBase.referralFeeBps(), 500);
         assertEq(stoaBase.treasury(), treasury);
         assertEq(stoaBase.owner(), owner);
 
         // Update values and test again
         stoaBase.setFeeBps(2000);
+        stoaBase.setCreatorFeeBps(1500);
+        stoaBase.setReferralFeeBps(750);
         stoaBase.setTreasury(newTreasury);
 
         assertEq(stoaBase.feeBps(), 2000);
+        assertEq(stoaBase.creatorFeeBps(), 1500);
+        assertEq(stoaBase.referralFeeBps(), 750);
         assertEq(stoaBase.treasury(), newTreasury);
         assertEq(stoaBase.owner(), owner);
     }
@@ -342,5 +423,54 @@ contract StoaBaseTest is Test {
 
         console.log("Gas used for setTreasury:", gasUsed);
         // This is just informational, no assertion needed
+    }
+
+    function testGasUsageSetReferralFeeBps() public {
+        uint256 gasBefore = gasleft();
+        stoaBase.setReferralFeeBps(750);
+        uint256 gasUsed = gasBefore - gasleft();
+
+        console.log("Gas used for setReferralFeeBps:", gasUsed);
+        // This is just informational, no assertion needed
+    }
+
+    // Integration test with all fees
+    function testAllFeeTypesIntegration() public {
+        // Set all different fee types
+        stoaBase.setFeeBps(800); // 8% protocol fee
+        stoaBase.setCreatorFeeBps(1200); // 12% creator fee
+        stoaBase.setReferralFeeBps(300); // 3% referral fee
+
+        // Verify all are set correctly
+        assertEq(stoaBase.feeBps(), 800);
+        assertEq(stoaBase.creatorFeeBps(), 1200);
+        assertEq(stoaBase.referralFeeBps(), 300);
+
+        // Total fees would be 23% (8% + 12% + 3%), leaving 77% for rewards
+        uint256 totalFees = stoaBase.feeBps() + stoaBase.creatorFeeBps() + stoaBase.referralFeeBps();
+        assertEq(totalFees, 2300); // 23%
+
+        uint256 rewardPercentage = 10000 - totalFees;
+        assertEq(rewardPercentage, 7700); // 77%
+    }
+
+    function testExtremeFeeCombinations() public {
+        // Test with very high fees (all at max)
+        stoaBase.setFeeBps(10000); // 100% protocol fee
+        stoaBase.setCreatorFeeBps(10000); // 100% creator fee
+        stoaBase.setReferralFeeBps(10000); // 100% referral fee
+
+        assertEq(stoaBase.feeBps(), 10000);
+        assertEq(stoaBase.creatorFeeBps(), 10000);
+        assertEq(stoaBase.referralFeeBps(), 10000);
+
+        // Test with all at zero
+        stoaBase.setFeeBps(0);
+        stoaBase.setCreatorFeeBps(0);
+        stoaBase.setReferralFeeBps(0);
+
+        assertEq(stoaBase.feeBps(), 0);
+        assertEq(stoaBase.creatorFeeBps(), 0);
+        assertEq(stoaBase.referralFeeBps(), 0);
     }
 }

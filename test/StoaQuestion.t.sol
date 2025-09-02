@@ -22,13 +22,13 @@ contract StoaQuestionTest is Test {
 
     address public owner;
     address public treasury;
-    address public evaluator;
     address public creator;
     address public user1;
     address public user2;
     address public user3;
     address public submitter;
     address public funder;
+    address public referrer;
 
     uint256 public constant SUBMISSION_COST = 10 * 10 ** 18; // 10 tokens
     uint256 public constant DURATION = 7 days;
@@ -37,29 +37,31 @@ contract StoaQuestionTest is Test {
 
     // Events for testing
     event AnswerSubmitted(address indexed responder, uint256 index);
+    event AnswerSubmittedWithReferral(address indexed responder, uint256 index, address indexed referrer);
     event Evaluated(uint256[] rankedAnswerIndices);
     event RewardClaimed(address indexed user, uint256 amount);
     event Seeded(address indexed funder, uint256 amount);
     event FeeUpdated(uint256 newFeeBps);
+    event ReferralFeeUpdated(uint256 newReferralFeeBps);
     event TreasuryUpdated(address newTreasury);
 
     function setUp() public {
         owner = address(this);
         treasury = makeAddr("treasury");
-        evaluator = makeAddr("evaluator");
         creator = makeAddr("creator");
         user1 = makeAddr("user1");
         user2 = makeAddr("user2");
         user3 = makeAddr("user3");
         submitter = makeAddr("submitter");
         funder = makeAddr("funder");
+        referrer = makeAddr("referrer");
 
         // Deploy token and reputation system
         paymentToken = new MockToken("PaymentToken", "PAY");
 
         // Deploy question contract with single token
         vm.prank(creator);
-        question = new StoaQuestion(address(paymentToken), SUBMISSION_COST, DURATION, MAX_WINNERS, evaluator, treasury);
+        question = new StoaQuestion(address(paymentToken), SUBMISSION_COST, DURATION, MAX_WINNERS, treasury, creator);
 
         // Distribute tokens to users
         paymentToken.mint(user1, INITIAL_BALANCE);
@@ -67,6 +69,7 @@ contract StoaQuestionTest is Test {
         paymentToken.mint(user3, INITIAL_BALANCE);
         paymentToken.mint(submitter, INITIAL_BALANCE);
         paymentToken.mint(funder, INITIAL_BALANCE);
+        paymentToken.mint(referrer, INITIAL_BALANCE);
 
         // Only need single token - no separate reward token needed
 
@@ -81,6 +84,8 @@ contract StoaQuestionTest is Test {
         paymentToken.approve(address(question), type(uint256).max);
         vm.prank(funder);
         paymentToken.approve(address(question), type(uint256).max);
+        vm.prank(referrer);
+        paymentToken.approve(address(question), type(uint256).max);
     }
 
     // Constructor Tests
@@ -88,10 +93,12 @@ contract StoaQuestionTest is Test {
         assertEq(address(question.token()), address(paymentToken));
         assertEq(question.submissionCost(), SUBMISSION_COST);
         assertEq(question.maxWinners(), MAX_WINNERS);
-        assertEq(question.evaluator(), evaluator);
+        assertEq(question.creator(), creator);
         assertEq(question.treasury(), treasury);
         assertEq(question.creator(), creator);
         assertEq(question.feeBps(), 1000); // 10% default fee
+        assertEq(question.creatorFeeBps(), 1000); // 10% default creator fee
+        assertEq(question.referralFeeBps(), 500); // 5% default referral fee
         assertEq(question.totalRewardPool(), 0);
         assertFalse(question.evaluated());
         assertEq(question.endsAt(), block.timestamp + DURATION);
@@ -154,7 +161,8 @@ contract StoaQuestionTest is Test {
         bytes32 answerHash = keccak256("My answer");
         uint256 protocolCut = SUBMISSION_COST * 1000 / 10000; // 10% protocol fee
         uint256 creatorCut = SUBMISSION_COST * 1000 / 10000; // 10% creator fee
-        uint256 expectedRewardCut = SUBMISSION_COST - protocolCut - creatorCut;
+        uint256 referralCut = SUBMISSION_COST * 500 / 10000; // 5% referral fee (goes to reward pool when no referrer)
+        uint256 expectedRewardCut = SUBMISSION_COST - protocolCut - creatorCut; // includes referral cut since no referrer
 
         uint256 creatorBalanceBefore = paymentToken.balanceOf(creator);
 
@@ -175,7 +183,7 @@ contract StoaQuestionTest is Test {
         // Check mappings
         assertEq(question.userAnswerIndex(user1), 1); // 1-indexed
 
-        // Check total reward pool increased
+        // Check total reward pool increased (includes referral cut since no referrer)
         assertEq(question.totalRewardPool(), expectedRewardCut);
 
         // Check creator received their fee
@@ -210,8 +218,8 @@ contract StoaQuestionTest is Test {
             0, // Zero submission cost
             DURATION,
             MAX_WINNERS,
-            evaluator,
-            treasury
+            treasury,
+            creator
         );
 
         vm.prank(user1);
@@ -287,7 +295,7 @@ contract StoaQuestionTest is Test {
         vm.expectEmit(true, false, false, true);
         emit Evaluated(rankedIndices);
 
-        vm.prank(evaluator);
+        vm.prank(creator);
         question.evaluateAnswers(rankedIndices);
 
         assertTrue(question.evaluated());
@@ -311,7 +319,7 @@ contract StoaQuestionTest is Test {
     function testEvaluateAnswersTooEarly() public {
         uint256[] memory rankedIndices = new uint256[](0);
 
-        vm.prank(evaluator);
+        vm.prank(creator);
         vm.expectRevert("Too early");
         question.evaluateAnswers(rankedIndices);
     }
@@ -321,10 +329,10 @@ contract StoaQuestionTest is Test {
 
         uint256[] memory rankedIndices = new uint256[](0);
 
-        vm.prank(evaluator);
+        vm.prank(creator);
         question.evaluateAnswers(rankedIndices);
 
-        vm.prank(evaluator);
+        vm.prank(creator);
         vm.expectRevert("Already evaluated");
         question.evaluateAnswers(rankedIndices);
     }
@@ -337,7 +345,7 @@ contract StoaQuestionTest is Test {
             rankedIndices[i] = i;
         }
 
-        vm.prank(evaluator);
+        vm.prank(creator);
         vm.expectRevert("Too many winners");
         question.evaluateAnswers(rankedIndices);
     }
@@ -361,7 +369,7 @@ contract StoaQuestionTest is Test {
         rankedIndices[0] = 0; // user1 first place (score = 3)
         rankedIndices[1] = 1; // user2 second place (score = 2)
 
-        vm.prank(evaluator);
+        vm.prank(creator);
         question.evaluateAnswers(rankedIndices);
 
         // Calculate expected rewards from total reward pool
@@ -418,7 +426,7 @@ contract StoaQuestionTest is Test {
         vm.warp(block.timestamp + DURATION + 1);
         uint256[] memory rankedIndices = new uint256[](0); // No winners
 
-        vm.prank(evaluator);
+        vm.prank(creator);
         question.evaluateAnswers(rankedIndices);
 
         vm.prank(user1);
@@ -437,7 +445,7 @@ contract StoaQuestionTest is Test {
         uint256[] memory rankedIndices = new uint256[](1);
         rankedIndices[0] = 0;
 
-        vm.prank(evaluator);
+        vm.prank(creator);
         question.evaluateAnswers(rankedIndices);
 
         vm.prank(user1);
@@ -505,7 +513,7 @@ contract StoaQuestionTest is Test {
         rankedIndices[1] = 1; // score = 2
         rankedIndices[2] = 2; // score = 1
 
-        vm.prank(evaluator);
+        vm.prank(creator);
         question.evaluateAnswers(rankedIndices);
 
         assertEq(question.totalScore(), 6); // 3 + 2 + 1
@@ -538,7 +546,7 @@ contract StoaQuestionTest is Test {
         rankedIndices[0] = 0; // user1 wins
         rankedIndices[1] = 1; // user2 second
 
-        vm.prank(evaluator);
+        vm.prank(creator);
         question.evaluateAnswers(rankedIndices);
 
         assertTrue(question.evaluated());
@@ -561,7 +569,7 @@ contract StoaQuestionTest is Test {
 
         uint256[] memory rankedIndices = new uint256[](0);
 
-        vm.prank(evaluator);
+        vm.prank(creator);
         question.evaluateAnswers(rankedIndices);
 
         assertTrue(question.evaluated());
@@ -572,10 +580,12 @@ contract StoaQuestionTest is Test {
         uint256 submissionCost = SUBMISSION_COST; // Use the actual submission cost from the contract
         uint256 feeBps = 1000; // 10% protocol fee
         uint256 creatorFeeBps = 1000; // 10% creator fee
+        uint256 referralFeeBps = 500; // 5% referral fee
 
         uint256 expectedProtocolCut = (submissionCost * feeBps) / 10000;
         uint256 expectedCreatorCut = (submissionCost * creatorFeeBps) / 10000;
-        uint256 expectedRewardCut = submissionCost - expectedProtocolCut - expectedCreatorCut;
+        uint256 expectedReferralCut = (submissionCost * referralFeeBps) / 10000;
+        uint256 expectedRewardCut = submissionCost - expectedProtocolCut - expectedCreatorCut; // includes referral cut when no referrer
 
         uint256 creatorBalanceBefore = paymentToken.balanceOf(creator);
 
@@ -585,6 +595,7 @@ contract StoaQuestionTest is Test {
         assertEq(paymentToken.balanceOf(treasury), expectedProtocolCut);
         assertEq(paymentToken.balanceOf(creator) - creatorBalanceBefore, expectedCreatorCut);
         assertEq(question.totalRewardPool(), expectedRewardCut);
+        assertEq(paymentToken.balanceOf(referrer), INITIAL_BALANCE); // No referrer used, so referrer balance unchanged
     }
 
     // Fuzz Tests
@@ -625,7 +636,7 @@ contract StoaQuestionTest is Test {
             rankedIndices[i] = i;
         }
 
-        vm.prank(evaluator);
+        vm.prank(creator);
         question.evaluateAnswers(rankedIndices);
 
         assertTrue(question.evaluated());
@@ -655,7 +666,7 @@ contract StoaQuestionTest is Test {
         rankedIndices[1] = 1;
 
         uint256 gasBefore = gasleft();
-        vm.prank(evaluator);
+        vm.prank(creator);
         question.evaluateAnswers(rankedIndices);
         uint256 gasUsed = gasBefore - gasleft();
 
@@ -674,7 +685,7 @@ contract StoaQuestionTest is Test {
         uint256[] memory rankedIndices = new uint256[](1);
         rankedIndices[0] = 0;
 
-        vm.prank(evaluator);
+        vm.prank(creator);
         question.evaluateAnswers(rankedIndices);
 
         uint256 gasBefore = gasleft();
@@ -683,6 +694,190 @@ contract StoaQuestionTest is Test {
         uint256 gasUsed = gasBefore - gasleft();
 
         console.log("Gas used for claimReward:", gasUsed);
+    }
+
+    // Referral Mechanism Tests
+    function testSubmitAnswerWithReferral() public {
+        bytes32 answerHash = keccak256("Answer with referral");
+        uint256 protocolCut = SUBMISSION_COST * 1000 / 10000; // 10% protocol fee
+        uint256 creatorCut = SUBMISSION_COST * 1000 / 10000; // 10% creator fee
+        uint256 referralCut = SUBMISSION_COST * 500 / 10000; // 5% referral fee
+        uint256 expectedRewardCut = SUBMISSION_COST - protocolCut - creatorCut - referralCut;
+
+        uint256 creatorBalanceBefore = paymentToken.balanceOf(creator);
+        uint256 referrerBalanceBefore = paymentToken.balanceOf(referrer);
+
+        vm.expectEmit(true, false, false, true);
+        emit AnswerSubmittedWithReferral(user1, 0, referrer);
+
+        vm.prank(user1);
+        question.submitAnswerWithReferral(answerHash, referrer);
+
+        // Check answer was recorded
+        StoaQuestion.Answer memory answer = question.getAnswer(0);
+        assertEq(answer.responder, user1);
+        assertEq(answer.answerHash, answerHash);
+
+        // Check fee distribution
+        assertEq(paymentToken.balanceOf(treasury), protocolCut);
+        assertEq(paymentToken.balanceOf(creator) - creatorBalanceBefore, creatorCut);
+        assertEq(paymentToken.balanceOf(referrer) - referrerBalanceBefore, referralCut);
+        assertEq(question.totalRewardPool(), expectedRewardCut);
+    }
+
+    function testSubmitAnswerWithZeroReferrer() public {
+        bytes32 answerHash = keccak256("Answer with zero referrer");
+        uint256 protocolCut = SUBMISSION_COST * 1000 / 10000;
+        uint256 creatorCut = SUBMISSION_COST * 1000 / 10000;
+        uint256 referralCut = SUBMISSION_COST * 500 / 10000; // Goes to reward pool
+        uint256 expectedRewardCut = SUBMISSION_COST - protocolCut - creatorCut; // includes referral cut
+
+        vm.expectEmit(true, false, false, true);
+        emit AnswerSubmitted(user1, 0); // Should emit regular event, not referral event
+
+        vm.prank(user1);
+        question.submitAnswerWithReferral(answerHash, address(0));
+
+        assertEq(question.totalRewardPool(), expectedRewardCut);
+        assertEq(paymentToken.balanceOf(address(0)), 0); // Zero address gets nothing
+    }
+
+    function testSubmitAnswerForWithReferral() public {
+        bytes32 answerHash = keccak256("Answer for user with referral");
+
+        // Authorize submitter
+        vm.prank(creator);
+        question.setSubmitter(submitter, true);
+
+        uint256 referrerBalanceBefore = paymentToken.balanceOf(referrer);
+        uint256 referralCut = SUBMISSION_COST * 500 / 10000;
+
+        vm.expectEmit(true, false, false, true);
+        emit AnswerSubmittedWithReferral(user1, 0, referrer);
+
+        vm.prank(submitter);
+        question.submitAnswerForWithReferral(user1, answerHash, referrer);
+
+        // Check answer attributed to user1
+        StoaQuestion.Answer memory answer = question.getAnswer(0);
+        assertEq(answer.responder, user1);
+        assertEq(question.userAnswerIndex(user1), 1);
+
+        // Check referrer got paid
+        assertEq(paymentToken.balanceOf(referrer) - referrerBalanceBefore, referralCut);
+    }
+
+    function testSubmitAnswerForWithZeroReferrer() public {
+        vm.prank(creator);
+        question.setSubmitter(submitter, true);
+
+        vm.expectEmit(true, false, false, true);
+        emit AnswerSubmitted(user1, 0); // Regular event when no referrer
+
+        vm.prank(submitter);
+        question.submitAnswerForWithReferral(user1, keccak256("Answer"), address(0));
+
+        assertEq(question.userAnswerIndex(user1), 1);
+    }
+
+    function testReferralFeeCalculationAccuracy() public {
+        // Test with different submission costs to ensure accurate calculations
+        uint256[] memory costs = new uint256[](3);
+        costs[0] = 1000; // Small amount
+        costs[1] = 12345; // Odd amount
+        costs[2] = 1000000; // Large amount
+
+        for (uint256 i = 0; i < costs.length; i++) {
+            // Deploy new question with different cost
+            vm.prank(creator);
+            StoaQuestion testQuestion =
+                new StoaQuestion(address(paymentToken), costs[i], DURATION, MAX_WINNERS, treasury, creator);
+
+            vm.prank(user1);
+            paymentToken.approve(address(testQuestion), type(uint256).max);
+
+            uint256 referrerBalanceBefore = paymentToken.balanceOf(referrer);
+
+            vm.prank(user1);
+            testQuestion.submitAnswerWithReferral(keccak256(abi.encodePacked("Answer", i)), referrer);
+
+            uint256 expectedReferralCut = (costs[i] * 500) / 10000;
+            uint256 actualReferralCut = paymentToken.balanceOf(referrer) - referrerBalanceBefore;
+
+            assertEq(actualReferralCut, expectedReferralCut, "Referral cut calculation incorrect");
+        }
+    }
+
+    function testReferralWithCompleteWorkflow() public {
+        // Seed question
+        uint256 seedAmount = 500 * 10 ** 18;
+        vm.prank(funder);
+        question.seedQuestion(seedAmount);
+
+        // Submit answers with referrals
+        vm.prank(user1);
+        question.submitAnswerWithReferral(keccak256("Best answer"), referrer);
+        vm.prank(user2);
+        question.submitAnswer(keccak256("Good answer")); // No referral
+        vm.prank(user3);
+        question.submitAnswerWithReferral(keccak256("Ok answer"), referrer);
+
+        // Check referrer got paid twice (they had initial balance from setup)
+        uint256 expectedReferralTotal = (SUBMISSION_COST * 500 / 10000) * 2;
+        uint256 initialReferrerBalance = INITIAL_BALANCE; // From setup
+        assertEq(paymentToken.balanceOf(referrer), initialReferrerBalance + expectedReferralTotal);
+
+        // Complete evaluation and rewards
+        vm.warp(block.timestamp + DURATION + 1);
+
+        uint256[] memory rankedIndices = new uint256[](2);
+        rankedIndices[0] = 0; // user1 wins
+        rankedIndices[1] = 1; // user2 second
+
+        vm.prank(creator);
+        question.evaluateAnswers(rankedIndices);
+
+        // Claim rewards - should work normally despite referral mechanism
+        vm.prank(user1);
+        question.claimReward();
+        vm.prank(user2);
+        question.claimReward();
+
+        assertTrue(question.getAnswer(0).rewarded);
+        assertTrue(question.getAnswer(1).rewarded);
+        assertFalse(question.getAnswer(2).rewarded);
+    }
+
+    function testFuzzReferralCalculation(uint256 submissionCost, uint16 referralBps) public {
+        vm.assume(submissionCost > 0 && submissionCost <= paymentToken.balanceOf(user1));
+        vm.assume(referralBps <= 10000); // Max 100%
+
+        // Ensure total fees don't exceed 100% to prevent overflow
+        uint256 totalFees = 1000 + 1000 + referralBps; // protocol + creator + referral
+        vm.assume(totalFees <= 10000);
+        vm.assume(submissionCost >= totalFees); // Prevent underflow in reward calculation
+
+        // Deploy question with fuzzed parameters
+        vm.prank(creator);
+        StoaQuestion fuzzQuestion =
+            new StoaQuestion(address(paymentToken), submissionCost, DURATION, MAX_WINNERS, treasury, creator);
+
+        // Set custom referral fee
+        vm.prank(creator);
+        fuzzQuestion.setReferralFeeBps(referralBps);
+
+        vm.prank(user1);
+        paymentToken.approve(address(fuzzQuestion), type(uint256).max);
+
+        uint256 referrerBalanceBefore = paymentToken.balanceOf(referrer);
+
+        vm.prank(user1);
+        fuzzQuestion.submitAnswerWithReferral(keccak256("Fuzz answer"), referrer);
+
+        uint256 expectedReferralCut = (submissionCost * referralBps) / 10000;
+        uint256 actualReferralCut = paymentToken.balanceOf(referrer) - referrerBalanceBefore;
+
+        assertEq(actualReferralCut, expectedReferralCut);
     }
 
     // Emergency refund tests
@@ -722,7 +917,7 @@ contract StoaQuestionTest is Test {
         uint256[] memory rankedIndices = new uint256[](1);
         rankedIndices[0] = 0;
 
-        vm.prank(evaluator);
+        vm.prank(creator);
         question.evaluateAnswers(rankedIndices);
 
         // Try emergency refund after evaluation
@@ -730,5 +925,494 @@ contract StoaQuestionTest is Test {
         vm.prank(user1);
         vm.expectRevert("Already evaluated");
         question.emergencyRefund();
+    }
+
+    // Test referral fee configuration
+    function testSetReferralFeeBps() public {
+        vm.expectEmit(true, false, false, true);
+        emit ReferralFeeUpdated(750); // 7.5%
+
+        vm.prank(creator);
+        question.setReferralFeeBps(750);
+
+        assertEq(question.referralFeeBps(), 750);
+    }
+
+    function testSetReferralFeeBpsOnlyOwner() public {
+        vm.prank(user1);
+        vm.expectRevert();
+        question.setReferralFeeBps(750);
+    }
+
+    function testSetReferralFeeBpsMaxLimit() public {
+        vm.prank(creator);
+        vm.expectRevert("Referral fee cannot exceed 100%");
+        question.setReferralFeeBps(10001); // 100.01%
+    }
+
+    // ============= NEW UTILITY FUNCTION TESTS =============
+
+    // Question Status Function Tests
+    function testIsActive() public {
+        // Should be active initially
+        assertTrue(question.isActive());
+
+        // Should be inactive after end time
+        vm.warp(block.timestamp + DURATION + 1);
+        assertFalse(question.isActive());
+    }
+
+    function testIsEvaluationPeriod() public {
+        // Should not be in evaluation period initially
+        assertFalse(question.isEvaluationPeriod());
+
+        // Should be in evaluation period after question ends but before evaluation deadline
+        vm.warp(block.timestamp + DURATION + 1);
+        assertTrue(question.isEvaluationPeriod());
+
+        // Should not be in evaluation period after evaluation deadline
+        vm.warp(block.timestamp + 8 days);
+        assertFalse(question.isEvaluationPeriod());
+
+        // Test with a fresh question for evaluation scenario
+        StoaQuestion freshQuestion =
+            new StoaQuestion(address(paymentToken), SUBMISSION_COST, DURATION, MAX_WINNERS, treasury, creator);
+
+        // Submit answer to fresh question
+        vm.prank(user1);
+        paymentToken.approve(address(freshQuestion), SUBMISSION_COST);
+        vm.prank(user1);
+        freshQuestion.submitAnswer(keccak256("answer1"));
+
+        // Should be in evaluation period after question ends
+        vm.warp(block.timestamp + DURATION + 1);
+        assertTrue(freshQuestion.isEvaluationPeriod());
+
+        // Evaluate and should not be in evaluation period anymore
+        uint256[] memory rankedIndices = new uint256[](1);
+        rankedIndices[0] = 0;
+
+        vm.prank(creator);
+        freshQuestion.evaluateAnswers(rankedIndices);
+
+        assertFalse(freshQuestion.isEvaluationPeriod());
+    }
+
+    function testTimeRemaining() public {
+        // Should return correct time remaining
+        uint256 remaining = question.timeRemaining();
+        assertEq(remaining, DURATION);
+
+        // Should decrease over time
+        vm.warp(block.timestamp + 1 days);
+        remaining = question.timeRemaining();
+        assertEq(remaining, DURATION - 1 days);
+
+        // Should return 0 after end time
+        vm.warp(block.timestamp + DURATION);
+        remaining = question.timeRemaining();
+        assertEq(remaining, 0);
+    }
+
+    function testGetQuestionStatus() public {
+        // Should be "Active" initially
+        assertEq(question.getQuestionStatus(), "Active");
+
+        // Should be "AwaitingEvaluation" after question ends
+        vm.warp(block.timestamp + DURATION + 1);
+        assertEq(question.getQuestionStatus(), "AwaitingEvaluation");
+
+        // Submit answer and evaluate
+        vm.warp(block.timestamp - DURATION - 1); // Back to active period
+        vm.prank(user1);
+        question.submitAnswer(keccak256("answer1"));
+
+        vm.warp(block.timestamp + DURATION + 1);
+        uint256[] memory rankedIndices = new uint256[](1);
+        rankedIndices[0] = 0;
+
+        vm.prank(creator);
+        question.evaluateAnswers(rankedIndices);
+
+        assertEq(question.getQuestionStatus(), "Evaluated");
+
+        // Test emergency refund status with a new question
+        StoaQuestion newQuestion =
+            new StoaQuestion(address(paymentToken), SUBMISSION_COST, DURATION, MAX_WINNERS, treasury, creator);
+
+        vm.prank(user1);
+        paymentToken.approve(address(newQuestion), SUBMISSION_COST);
+        vm.prank(user1);
+        newQuestion.submitAnswer(keccak256("answer1"));
+
+        // Wait past evaluation deadline without evaluating
+        vm.warp(block.timestamp + DURATION + 8 days);
+        assertEq(newQuestion.getQuestionStatus(), "EmergencyRefundAvailable");
+    }
+
+    // Participant Information Function Tests
+    function testGetAnswerCount() public {
+        assertEq(question.getAnswerCount(), 0);
+
+        vm.prank(user1);
+        question.submitAnswer(keccak256("answer1"));
+        assertEq(question.getAnswerCount(), 1);
+
+        vm.prank(user2);
+        question.submitAnswer(keccak256("answer2"));
+        assertEq(question.getAnswerCount(), 2);
+    }
+
+    function testHasUserSubmitted() public {
+        assertFalse(question.hasUserSubmitted(user1));
+        assertFalse(question.hasUserSubmitted(user2));
+
+        vm.prank(user1);
+        question.submitAnswer(keccak256("answer1"));
+
+        assertTrue(question.hasUserSubmitted(user1));
+        assertFalse(question.hasUserSubmitted(user2));
+
+        vm.prank(user2);
+        question.submitAnswer(keccak256("answer2"));
+
+        assertTrue(question.hasUserSubmitted(user1));
+        assertTrue(question.hasUserSubmitted(user2));
+    }
+
+    function testGetWinnerAddresses() public {
+        // Submit answers
+        vm.prank(user1);
+        question.submitAnswer(keccak256("answer1"));
+        vm.prank(user2);
+        question.submitAnswer(keccak256("answer2"));
+        vm.prank(user3);
+        question.submitAnswer(keccak256("answer3"));
+
+        // No winners before evaluation
+        address[] memory winners = question.getWinnerAddresses();
+        assertEq(winners.length, 0);
+
+        // Evaluate with 2 winners
+        vm.warp(block.timestamp + DURATION + 1);
+        uint256[] memory rankedIndices = new uint256[](2);
+        rankedIndices[0] = 0; // user1 - 1st place
+        rankedIndices[1] = 2; // user3 - 2nd place
+
+        vm.prank(creator);
+        question.evaluateAnswers(rankedIndices);
+
+        winners = question.getWinnerAddresses();
+        assertEq(winners.length, 2);
+        // Check that winners contain user1 and user3 (order doesn't matter in getWinnerAddresses)
+        assertTrue(winners[0] == user1 || winners[1] == user1);
+        assertTrue(winners[0] == user3 || winners[1] == user3);
+    }
+
+    function testGetRankedWinners() public {
+        // Submit answers
+        vm.prank(user1);
+        question.submitAnswer(keccak256("answer1"));
+        vm.prank(user2);
+        question.submitAnswer(keccak256("answer2"));
+        vm.prank(user3);
+        question.submitAnswer(keccak256("answer3"));
+
+        // Evaluate with all 3 winners in specific order
+        vm.warp(block.timestamp + DURATION + 1);
+        uint256[] memory rankedIndices = new uint256[](3);
+        rankedIndices[0] = 2; // user3 - 1st place (score 3)
+        rankedIndices[1] = 0; // user1 - 2nd place (score 2)
+        rankedIndices[2] = 1; // user2 - 3rd place (score 1)
+
+        vm.prank(creator);
+        question.evaluateAnswers(rankedIndices);
+
+        (address[] memory addresses, uint256[] memory scores) = question.getRankedWinners();
+
+        assertEq(addresses.length, 3);
+        assertEq(scores.length, 3);
+
+        // Should be sorted by score descending
+        assertEq(addresses[0], user3); // 1st place
+        assertEq(scores[0], 3);
+        assertEq(addresses[1], user1); // 2nd place
+        assertEq(scores[1], 2);
+        assertEq(addresses[2], user2); // 3rd place
+        assertEq(scores[2], 1);
+    }
+
+    // Reward Pool Information Function Tests
+    function testGetTotalClaimed() public {
+        // Setup answers and evaluation
+        vm.prank(user1);
+        question.submitAnswer(keccak256("answer1"));
+        vm.prank(user2);
+        question.submitAnswer(keccak256("answer2"));
+
+        // Seed the question for rewards
+        uint256 seedAmount = 100 * 10 ** 18;
+        vm.prank(funder);
+        question.seedQuestion(seedAmount);
+
+        // Before evaluation, should return 0
+        assertEq(question.getTotalClaimed(), 0);
+
+        vm.warp(block.timestamp + DURATION + 1);
+        uint256[] memory rankedIndices = new uint256[](2);
+        rankedIndices[0] = 0; // user1 - score 2
+        rankedIndices[1] = 1; // user2 - score 1
+
+        vm.prank(creator);
+        question.evaluateAnswers(rankedIndices);
+
+        // After evaluation but no claims yet
+        assertEq(question.getTotalClaimed(), 0);
+
+        // User1 claims (should get 2/3 of total pool)
+        vm.prank(user1);
+        question.claimReward();
+
+        uint256 totalPool = question.totalRewardPool();
+        uint256 claimedAfterUser1 = question.getTotalClaimed();
+
+        // User2 claims (should get 1/3 of total pool)
+        vm.prank(user2);
+        question.claimReward();
+
+        uint256 totalClaimedAfterBoth = question.getTotalClaimed();
+
+        // The total claimed should equal the total pool (minus any rounding)
+        assertEq(totalClaimedAfterBoth, totalPool);
+    }
+
+    function testGetUnclaimedRewards() public {
+        // Setup answers and evaluation
+        vm.prank(user1);
+        question.submitAnswer(keccak256("answer1"));
+        vm.prank(user2);
+        question.submitAnswer(keccak256("answer2"));
+
+        // Seed the question for rewards
+        uint256 seedAmount = 100 * 10 ** 18;
+        vm.prank(funder);
+        question.seedQuestion(seedAmount);
+
+        uint256 totalPool = question.totalRewardPool();
+
+        // Before evaluation, unclaimed should be total pool
+        assertEq(question.getUnclaimedRewards(), totalPool);
+
+        vm.warp(block.timestamp + DURATION + 1);
+        uint256[] memory rankedIndices = new uint256[](2);
+        rankedIndices[0] = 0; // user1 - score 2
+        rankedIndices[1] = 1; // user2 - score 1
+
+        vm.prank(creator);
+        question.evaluateAnswers(rankedIndices);
+
+        // After evaluation, unclaimed should still be total pool
+        assertEq(question.getUnclaimedRewards(), totalPool);
+
+        // User1 claims
+        vm.prank(user1);
+        question.claimReward();
+
+        uint256 unclaimedAfterUser1 = question.getUnclaimedRewards();
+        assertTrue(unclaimedAfterUser1 < totalPool); // Should be less than total pool
+
+        // User2 claims
+        vm.prank(user2);
+        question.claimReward();
+
+        // After all users claim, unclaimed should be 0 (or very close due to rounding)
+        assertEq(question.getUnclaimedRewards(), 0);
+    }
+
+    // Emergency/Admin Function Tests
+    function testCanEmergencyRefund() public {
+        // Create fresh question for this test
+        StoaQuestion freshQuestion =
+            new StoaQuestion(address(paymentToken), SUBMISSION_COST, DURATION, MAX_WINNERS, treasury, creator);
+
+        // Should not be available initially
+        assertFalse(freshQuestion.canEmergencyRefund());
+
+        // Should not be available during active period
+        vm.warp(block.timestamp + DURATION - 1);
+        assertFalse(freshQuestion.canEmergencyRefund());
+
+        // Should not be available during evaluation period
+        vm.warp(block.timestamp + DURATION + 1);
+        assertFalse(freshQuestion.canEmergencyRefund());
+
+        // Should be available after evaluation deadline without evaluation
+        vm.warp(block.timestamp + 8 days);
+        assertTrue(freshQuestion.canEmergencyRefund());
+
+        // Create another question to test evaluated scenario
+        vm.warp(block.timestamp - DURATION - 8 days); // Reset time
+        StoaQuestion evaluatedQuestion =
+            new StoaQuestion(address(paymentToken), SUBMISSION_COST, DURATION, MAX_WINNERS, treasury, creator);
+
+        vm.prank(user1);
+        paymentToken.approve(address(evaluatedQuestion), SUBMISSION_COST);
+        vm.prank(user1);
+        evaluatedQuestion.submitAnswer(keccak256("answer1"));
+
+        vm.warp(block.timestamp + DURATION + 1);
+        uint256[] memory rankedIndices = new uint256[](1);
+        rankedIndices[0] = 0;
+
+        vm.prank(creator);
+        evaluatedQuestion.evaluateAnswers(rankedIndices);
+
+        vm.warp(block.timestamp + 8 days);
+        assertFalse(evaluatedQuestion.canEmergencyRefund());
+    }
+
+    function testGetEmergencyRefundAmount() public {
+        // Should return 0 initially
+        assertEq(question.getEmergencyRefundAmount(), 0);
+
+        // Submit answers and seed
+        vm.prank(user1);
+        question.submitAnswer(keccak256("answer1"));
+        vm.prank(user2);
+        question.submitAnswer(keccak256("answer2"));
+
+        uint256 seedAmount = 100 * 10 ** 18;
+        vm.prank(funder);
+        question.seedQuestion(seedAmount);
+
+        uint256 totalPool = question.totalRewardPool();
+
+        // Should return 0 during active period
+        assertEq(question.getEmergencyRefundAmount(), 0);
+
+        // Should return 0 during evaluation period
+        vm.warp(block.timestamp + DURATION + 1);
+        assertEq(question.getEmergencyRefundAmount(), 0);
+
+        // Should return equal distribution after evaluation deadline
+        vm.warp(block.timestamp + DURATION + 8 days);
+        assertEq(question.getEmergencyRefundAmount(), totalPool / 2); // 2 participants
+
+        // Should return 0 if evaluated
+        vm.warp(block.timestamp - 8 days); // Back to evaluation period
+
+        uint256[] memory rankedIndices = new uint256[](1);
+        rankedIndices[0] = 0;
+
+        vm.prank(creator);
+        question.evaluateAnswers(rankedIndices);
+
+        vm.warp(block.timestamp + 8 days);
+        assertEq(question.getEmergencyRefundAmount(), 0);
+    }
+
+    // Batch Operations Function Tests
+    function testGetMultipleClaimableAmounts() public {
+        // Setup answers and evaluation
+        vm.prank(user1);
+        question.submitAnswer(keccak256("answer1"));
+        vm.prank(user2);
+        question.submitAnswer(keccak256("answer2"));
+        vm.prank(user3);
+        question.submitAnswer(keccak256("answer3"));
+
+        // Seed the question
+        uint256 seedAmount = 100 * 10 ** 18;
+        vm.prank(funder);
+        question.seedQuestion(seedAmount);
+
+        // Test before evaluation
+        address[] memory users = new address[](4);
+        users[0] = user1;
+        users[1] = user2;
+        users[2] = user3;
+        users[3] = makeAddr("nonParticipant");
+
+        uint256[] memory amounts = question.getMultipleClaimableAmounts(users);
+
+        // All should be 0 before evaluation
+        for (uint256 i = 0; i < amounts.length; i++) {
+            assertEq(amounts[i], 0);
+        }
+
+        // Evaluate
+        vm.warp(block.timestamp + DURATION + 1);
+        uint256[] memory rankedIndices = new uint256[](2);
+        rankedIndices[0] = 0; // user1 - score 2
+        rankedIndices[1] = 2; // user3 - score 1
+
+        vm.prank(creator);
+        question.evaluateAnswers(rankedIndices);
+
+        // Test after evaluation
+        amounts = question.getMultipleClaimableAmounts(users);
+
+        assertTrue(amounts[0] > 0); // user1 - winner
+        assertEq(amounts[1], 0); // user2 - not a winner
+        assertTrue(amounts[2] > 0); // user3 - winner
+        assertEq(amounts[3], 0); // non-participant
+
+        uint256 user1ClaimableAmount = amounts[0];
+        uint256 user3ClaimableAmount = amounts[2];
+
+        // User1 claims
+        vm.prank(user1);
+        question.claimReward();
+
+        // Test after partial claiming
+        amounts = question.getMultipleClaimableAmounts(users);
+
+        assertEq(amounts[0], 0); // user1 - already claimed
+        assertEq(amounts[1], 0); // user2 - not a winner
+        assertEq(amounts[2], user3ClaimableAmount); // user3 - still can claim same amount
+        assertEq(amounts[3], 0); // non-participant
+    }
+
+    function testGetMultipleClaimableAmountsEmptyArray() public {
+        address[] memory users = new address[](0);
+        uint256[] memory amounts = question.getMultipleClaimableAmounts(users);
+        assertEq(amounts.length, 0);
+    }
+
+    // Test getClaimableAmount function that was added earlier
+    function testGetClaimableAmount() public {
+        // Should return 0 for non-participant
+        assertEq(question.getClaimableAmount(user1), 0);
+
+        // Submit answer
+        vm.prank(user1);
+        question.submitAnswer(keccak256("answer1"));
+
+        // Should return 0 before evaluation
+        assertEq(question.getClaimableAmount(user1), 0);
+
+        // Seed the question
+        uint256 seedAmount = 100 * 10 ** 18;
+        vm.prank(funder);
+        question.seedQuestion(seedAmount);
+
+        // Evaluate
+        vm.warp(block.timestamp + DURATION + 1);
+        uint256[] memory rankedIndices = new uint256[](1);
+        rankedIndices[0] = 0; // user1 wins
+
+        vm.prank(creator);
+        question.evaluateAnswers(rankedIndices);
+
+        // Should return claimable amount
+        uint256 expectedAmount = question.totalRewardPool();
+        assertEq(question.getClaimableAmount(user1), expectedAmount);
+
+        // Claim
+        vm.prank(user1);
+        question.claimReward();
+
+        // Should return 0 after claiming
+        assertEq(question.getClaimableAmount(user1), 0);
     }
 }

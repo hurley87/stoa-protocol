@@ -14,17 +14,15 @@ import "../src/StoaQuestionFactory.sol";
  */
 contract DeployStoaQuestionFactoryScript is Script {
     // Contract addresses
-    address constant EVALUATOR = 0xBe523e724B9Ea7D618dD093f14618D90c4B19b0c;
-    address constant TREASURY = 0xbD78783a26252bAf756e22f0DE764dfDcDa7733c;
-    address constant PROTOCOL_REGISTRY = 0x50e68d23a211d01E68C9812c9fcb1B84C94dc02B;
+    address constant TREASURY = 0xBe523e724B9Ea7D618dD093f14618D90c4B19b0c;
+    address constant PROTOCOL_REGISTRY = 0xFB20AD3ad36b197a3e0a36CC2C8edcf09767c13f;
 
     function run() public {
         vm.broadcast(vm.envUint("DEPLOYER_PRIVATE_KEY"));
 
-        StoaQuestionFactory questionFactory = new StoaQuestionFactory(EVALUATOR, TREASURY, PROTOCOL_REGISTRY);
+        StoaQuestionFactory questionFactory = new StoaQuestionFactory(TREASURY, PROTOCOL_REGISTRY);
 
         console.log("StoaQuestionFactory deployed at:", address(questionFactory));
-        console.log("Evaluator:", questionFactory.evaluator());
         console.log("Treasury:", questionFactory.treasury());
         console.log("Protocol Registry:", address(questionFactory.protocolRegistry()));
         console.log("Owner:", questionFactory.owner());
